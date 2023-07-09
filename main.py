@@ -5,21 +5,43 @@ import time
 import xlsxwriter
 import bs4
 import datetime
+from dop import keep_alive
 import requests
+import logging
+from telegram import ReplyKeyboardMarkup, Update, KeyboardButton
+from telegram.ext import MessageHandler, ConversationHandler, filters, Application, ContextTypes
+from telegram.ext import CommandHandler
+import threading
 
+start = True
 w = open('settings.txt')
-bogdan_snils = (w.readline().replace('\n', ''))
+bogdan_snils = '150-499-330-68'
 andr_snils = '150-862-479-69'
-my = int(w.readline())
 v = open('vuz.json', encoding='UTF-32')
 vuz = json.load(v)
+# logging.basicConfig(filename='logging.log',
+#                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
+#                     )
+TOKEN = '5342995443:AAEBqyRLrd5AmHEEhCNLyfHVy3td3Qvw-Ec'  # токен бота
+# TOKEN = '6380031031:AAFkhpubZvXUjRVFlWvn6RPugamNppbr4X8'
+markup = ReplyKeyboardMarkup([[KeyboardButton('Обновить')]], one_time_keyboard=False, resize_keyboard=True)
+last_t = 'Неизвестно'
+it = 0
+last = {}
+ok = False
+
 
 def check_mirea(v, napr):
+    global last_t, ok
     link = f'https://priem.mirea.ru/accepted-entrants-list/personal_code_rating.php?competition={vuz[v][napr][0]}'
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                             'Chrome/100.0.4896.160 YaBrowser/22.5.2.615 Yowser/2.5 Safari/537.36'}
+    headers = {'User-Agent': ''}
     res2 = requests.get(link, headers=headers)
     beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
+    last_time = beaLink.find('div', {'class': 'names'}).find('p', {'class':'lastUpdate'}).get_text()
+    if last_time == last_t and ok:
+        return last[napr]
+    ok = False
+    last_t = last_time
     data = beaLink.find('div', {'class': 'names'}).find('table', {'class':'namesTable'}).findAll('tr', {})
     real_k, kon_all = 0, 0
     b_real_k, b_kon_all = 0, 0
@@ -35,13 +57,20 @@ def check_mirea(v, napr):
         if fio == andr_snils:
             a_real_k, a_kon_all = real_k, kon_all
             break
+    last[napr] = b_real_k, b_kon_all, a_real_k, a_kon_all, vuz[v][napr][1]
+    print(last[napr])
     return b_real_k, b_kon_all, a_real_k, a_kon_all, vuz[v][napr][1]
 
-
+def sendMessage(id, text, token):
+    zap = f'''https://api.telegram.org/bot{token}/sendMessage'''
+    params = {'chat_id': id, 'text': text}
+    return requests.get(zap, params=params).json()
 
 def job():
 
-    itog = [['Основные положения', ['Протокол ', 'сделан', str(datetime.datetime.now())], ['для всех направлений указанных в файле система выводит крайнее место. если человек вылетел из списка, то функция выводит кол-во бюджетных мест']]]
+    date = datetime.datetime.today()
+    date += datetime.timedelta(hours=3)
+    itog = [['Основные положения', ['Протокол ', 'сделан', date.strftime('%d/%m/%Y %H:%M:%S')], ['для всех направлений указанных в файле система выводит крайнее место. если человек вылетел из списка, то функция выводит кол-во бюджетных мест']]]
     i = 2
     for v, bibl in vuz.items():
         data = [['направление', 'Б>ориг', 'Б>', 'А>ориг', 'А>', 'кол-во мест', 'Бпрохориг', 'Бпрох', 'Апрохориг', 'Апрох']]
@@ -61,10 +90,42 @@ def job():
             for i in range(len(stroka)):
                 worksheet.write(row, i, (stroka[i]))
     workbook.close()
-    print(str(datetime.datetime.now()))
+    global ok, start
+    ok = True
+    print(date)
+    global it
+    if it != last_t and not start:
+        it = last_t
+        a = open('settings.txt')
+        for i in a.readlines():
+            sendMessage(i, 'Внимание, списки обновлены', TOKEN)
+    start = False
 job()
-schedule.every(10).minutes.do(job)
+schedule.every(30).minutes.do(job)
+async def get(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f'Обработка, прошлый список\n{last_t}')
+    job()
+    await update.message.reply_document(document=open('Таблица_Excel_БД.xlsx', mode='rb'), reply_markup=markup)
+    await update.message.reply_text(f'Обработка завершена\n{last_t}')
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    a = open('settings.txt', 'w')
+    a.write(str(update.effective_user.id))
+    print(9)
+    await update.message.reply_text(f'Регистрация пройдена')
 
-while True:
-    schedule.run_pending()
-    time.sleep(100)
+def threat():
+    while True:
+        schedule.run_pending()
+        time.sleep(1000)
+
+
+if __name__ == '__main__':
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get))
+    application.add_handler(CommandHandler("start", start))
+    keep_alive()
+    threading.Thread(target=threat).start()
+    application.run_polling()
+
+
+
