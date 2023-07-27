@@ -33,31 +33,34 @@ def check_mirea(v, napr):
     global last_t, ok
     link = f'https://priem.mirea.ru/accepted-entrants-list/personal_code_rating.php?competition={vuz[v][napr][0]}'
     headers = {'User-Agent': ''}
-    res2 = requests.get(link, headers=headers)
-    beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
-    last_time = beaLink.find('div', {'class': 'names'}).find('p', {'class': 'lastUpdate'}).get_text()
-    if last_time == last_t and ok:
-        return last[napr]
-    ok = False
-    last_t = last_time
-    data = beaLink.find('div', {'class': 'names'}).find('table', {'class': 'namesTable'}).findAll('tr', {})
-    real_k, kon_all = 0, 0
-    b_real_k, b_kon_all = -1, -1
-    a_real_k, a_kon_all = -1, -1
-    i = 0
-    for inf in data[1:]:
-        fio, d1, d2 = inf.contents[1].get_text(), inf.contents[3].get_text(), inf.contents[4].get_text()
-        if d2 == 'да' or fio in [bogdan_snils, andr_snils]:
-            i += 1
-        if fio == bogdan_snils:
-            b_real_k = i
-        if fio == andr_snils:
-            a_real_k = i
-            break
+    try:
+        res2 = requests.get(link, headers=headers)
+        beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
+        last_time = beaLink.find('div', {'class': 'names'}).find('p', {'class': 'lastUpdate'}).get_text()
+        if last_time == last_t and ok:
+            return -1
+        ok = False
+        last_t = last_time
+        data = beaLink.find('div', {'class': 'names'}).find('table', {'class': 'namesTable'}).findAll('tr', {})
+        real_k, kon_all = 0, 0
+        b_real_k, b_kon_all = -1, -1
+        a_real_k, a_kon_all = -1, -1
+        i = 0
+        for inf in data[1:]:
+            fio, d1, d2 = inf.contents[1].get_text(), inf.contents[3].get_text(), inf.contents[4].get_text()
+            if d2 == 'да' or fio in [bogdan_snils, andr_snils]:
+                i += 1
+            if fio == bogdan_snils:
+                b_real_k = i
+            if fio == andr_snils:
+                a_real_k = i
+                break
 
 
-    return b_real_k, a_real_k, vuz[v][napr][1]
-
+        return b_real_k, a_real_k, vuz[v][napr][1]
+    except requests.HTTPError as http_error:
+        print('Ошибка доступа')
+        return -1
 
 def sendMessage(id, text, token):
     zap = f'''https://api.telegram.org/bot{token}/sendMessage'''
