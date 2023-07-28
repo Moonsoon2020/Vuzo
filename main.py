@@ -13,16 +13,16 @@ from telegram.ext import MessageHandler, ConversationHandler, filters, Applicati
 from telegram.ext import CommandHandler
 import threading
 
-starti = False
+starti = True
 w = open('settings.txt')
 bogdan_snils = '150-499-330-68'
 andr_snils = '150-862-479-69'
 v = open('vuz.json', encoding='UTF-32')
 vuz = json.load(v)
 
-# TOKEN = '5342995443:AAEBqyRLrd5AmHEEhCNLyfHVy3td3Qvw-Ec'  # токен бота
-TOKEN = '6380031031:AAFkhpubZvXUjRVFlWvn6RPugamNppbr4X8'
-markup0 = ReplyKeyboardMarkup([[KeyboardButton('Обновить'), KeyboardButton('Запрос')]], one_time_keyboard=False, resize_keyboard=True)
+TOKEN = '5342995443:AAEBqyRLrd5AmHEEhCNLyfHVy3td3Qvw-Ec'  # токен бота
+# TOKEN = '6380031031:AAFkhpubZvXUjRVFlWvn6RPugamNppbr4X8'
+markup0 = ReplyKeyboardMarkup([[KeyboardButton('Обновить'), KeyboardButton('Запрос')], [KeyboardButton('Общага')]], one_time_keyboard=False, resize_keyboard=True)
 last_t = 'Неизвестно'
 it = 0
 last = {}
@@ -67,6 +67,22 @@ def sendMessage(id, text, token):
     params = {'chat_id': id, 'text': text}
     return requests.get(zap, params=params).json()
 
+def check_ob():
+    text = ['1748205364832116022']
+    cou = 0
+    for w in text:
+        link = f'https://priem.mirea.ru/accepted-entrants-list/personal_code_rating.php?competition={w}'
+        headers = {'User-Agent': ''}
+        res2 = requests.get(link, headers=headers)
+        beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
+        data = beaLink.find('div', {'class': 'names'}).find('table', {'class': 'namesTable'}).findAll('tr', {})
+        for inf in data[1:]:
+            # print(inf.contents)
+            if int(inf.contents[11].get_text()) >= 259 and inf.contents[4].get_text() == 'да' and not('отказано' in inf.contents[6].get_text() or 'не' in inf.contents[6].get_text()):
+                cou += 1
+            if int(inf.contents[11].get_text()) < 259:
+                break
+    return cou
 
 def job():
     date = datetime.datetime.today()
@@ -117,10 +133,13 @@ async def get(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f'Обработка, прошлый список\n{last_t}', reply_markup=markup0)
         job()
         await update.message.reply_text(f'Обработка завершена\n{last_t}', reply_markup=markup0)
-    else:
+    elif update.message.text == 'Запросить':
         print(111, last)
         for i in last[0][1:]:
             sendMessage(update.effective_user.id, f'Направление {i[0]} \nБогдан {i[1]}\nАндрей {i[2]}\n из {i[3]}!', TOKEN)
+    elif update.message.text == 'Общага':
+        await update.message.reply_text(f'Обработка завершена\n Кол-во людей претендующих на общежитие c баллом >= 259 = {check_ob()}', reply_markup=markup0)
+
 
 
 
