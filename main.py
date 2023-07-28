@@ -2,14 +2,12 @@ import json
 
 import schedule
 import time
-import xlsxwriter
 import bs4
 import datetime
 from dop import keep_alive
 import requests
-import logging
 from telegram import ReplyKeyboardMarkup, Update, KeyboardButton
-from telegram.ext import MessageHandler, ConversationHandler, filters, Application, ContextTypes
+from telegram.ext import MessageHandler, filters, Application, ContextTypes
 from telegram.ext import CommandHandler
 import threading
 
@@ -20,8 +18,8 @@ andr_snils = '150-862-479-69'
 v = open('vuz.json', encoding='UTF-32')
 vuz = json.load(v)
 
-TOKEN = '5342995443:AAEBqyRLrd5AmHEEhCNLyfHVy3td3Qvw-Ec'  # токен бота
-# TOKEN = '6380031031:AAFkhpubZvXUjRVFlWvn6RPugamNppbr4X8'
+# TOKEN = '5342995443:AAEBqyRLrd5AmHEEhCNLyfHVy3td3Qvw-Ec'  # токен бота
+TOKEN = '6380031031:AAFkhpubZvXUjRVFlWvn6RPugamNppbr4X8'
 markup0 = ReplyKeyboardMarkup([[KeyboardButton('Обновить'), KeyboardButton('Запрос')], [KeyboardButton('Общага')]], one_time_keyboard=False, resize_keyboard=True)
 last_t = 'Неизвестно'
 it = 0
@@ -68,20 +66,27 @@ def sendMessage(id, text, token):
     return requests.get(zap, params=params).json()
 
 def check_ob():
-    text = ['1748205364832116022']
+    text = [i [:-1]for i in open('mi.txt').readlines()]
     cou = 0
-    for w in text:
+    for q, w in enumerate(text):
         link = f'https://priem.mirea.ru/accepted-entrants-list/personal_code_rating.php?competition={w}'
         headers = {'User-Agent': ''}
-        res2 = requests.get(link, headers=headers)
-        beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
-        data = beaLink.find('div', {'class': 'names'}).find('table', {'class': 'namesTable'}).findAll('tr', {})
+        try:
+            res2 = requests.get(link, headers=headers)
+            beaLink = bs4.BeautifulSoup(res2.text, 'html.parser')
+            data = beaLink.find('div', {'class': 'names'}).find('table', {'class': 'namesTable'}).findAll('tr', {})
+        except Exception as e:
+            print(e)
+            continue
         for inf in data[1:]:
             # print(inf.contents)
-            if int(inf.contents[11].get_text()) >= 259 and inf.contents[4].get_text() == 'да' and not('отказано' in inf.contents[6].get_text() or 'не' in inf.contents[6].get_text()):
+            if len(inf.contents) != 14:
+                continue
+            if (int(inf.contents[11].get_text()) == 0 or int(inf.contents[11].get_text()) >= 259) and inf.contents[4].get_text() == 'да' and not('отказано' in inf.contents[6].get_text() or 'не' in inf.contents[6].get_text()):
                 cou += 1
             if int(inf.contents[11].get_text()) < 259:
                 break
+        print(q, cou)
     return cou
 
 def job():
@@ -116,10 +121,8 @@ def job():
     if it != last_t and not starti:
         a = open('settings.txt')
         for k in a.readlines():
-            sendMessage(k, 'Внимание, списки обновлены, это специальный фальц старт напиши "Запрос" тогда придёт вот такая шняга', TOKEN)
-            for i in last[0][1:]:
-                sendMessage(k, f'Направление {i[0]} \nБогдан {i[1]}\nАндрей {i[2]}\n из {i[3]}!',
-                            TOKEN)
+            sendMessage(k, 'Внимание, списки обновлены', TOKEN)
+
 
     it = last_t
     starti = False
@@ -157,7 +160,7 @@ def threat():
 
 
 if __name__ == '__main__':
-    schedule.every(30).minutes.do(job)
+    schedule.every(20).minutes.do(job)
     application = Application.builder().token(TOKEN).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, get))
     application.add_handler(CommandHandler("start", start))
